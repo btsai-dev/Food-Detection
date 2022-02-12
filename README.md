@@ -12,6 +12,7 @@ Food Detection
     - Install manually:
         - `cd pycocotools-2.0.2`
         - `python setup.py build_ext install`
+    - Return back to root level with `cd ..`
 
 3. Install PyTorch and Torchvision
     - Check your CUDA version
@@ -30,7 +31,6 @@ Food Detection
         - CUDA compiler version should be same ason PyTorch is built for
         
 5. Install opencv
-    - Return back to root level with `cd ..`
     -  `conda install -c conda-forge opencv`
 
 6. Install pywin32
@@ -43,3 +43,41 @@ Food Detection
     
 10. Execute tensorboard
     - `tensorboard --logdir=log_dir`
+    
+
+13. Setup Dataset
+    - The script expects usage of the FoodSeg103 dataset.
+
+    FoodSeg103
+    ├── Images
+    │ ├── ann_dir
+    │ │   ├── test
+    │ │   │   ├── 00001.png
+    │ │   │   ├── 00002.png
+    │ │   │   ├── ...
+    │ │   │   └── 75000.png9
+    │ │   └── train
+    │ │       ├── 75001.png
+    │ │       ├── 75002.png
+    │ │       ├── ...
+    │ │       └── 99999.png
+    │ └── img_dir
+    │ │   ├── test
+    │ │   │   ├── 00001.png
+    │ │   │   ├── 00002.png
+    │ │   │   ├── ...
+    │ │   │   └── 75000.png
+    │ │   │
+    │ │   └── train
+    │ │       ├── 75001.png
+    │ │       ├── 75002.png
+    │ │       ├── ...
+    │ │       └── 99999.png
+    └── ImageSets
+    │ ├── test.txt
+    │ └── train.txt
+    ├── category_id.txt
+    ├── Readme.txt
+    └── test_recipe1m_id.txt
+    └── train_test_recipe1m_id.txt
+   
