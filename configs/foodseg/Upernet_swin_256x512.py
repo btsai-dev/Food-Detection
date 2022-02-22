@@ -8,8 +8,8 @@ data_root = './data/FoodSeg103/Images/'
 
 img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
-WIDTH = 256
-HEIGHT = 512
+WIDTH = 384
+HEIGHT = 768
 crop_size = (WIDTH, HEIGHT)
 img_scale = (WIDTH*4, HEIGHT)
 ratio_range = (0.5, 2.0)
@@ -197,7 +197,7 @@ lr_config = dict(
     power=1.0,
     min_lr=0.0,
     by_epoch=False)
-runner = dict(type='IterBasedRunner', max_iters=80000)
+runner = dict(type='IterBasedRunner', max_iters=160000)
 checkpoint_config = dict(by_epoch=False, interval=8000)
 evaluation = dict(interval=8000, metric='mIoU')
 work_dir = './work_dirs/upernet_swin_base_patch4_window7_128x256_80k'
