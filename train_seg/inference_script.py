@@ -22,39 +22,19 @@ from mmseg.datasets import build_dataloader, build_dataset
 from mmseg.models import build_segmentor
 from mmseg.utils import setup_multi_processes
 
+from FoodDataset import FoodDataset
+
 ROOT_DIR = str(Path(__file__).resolve().parents[1]).replace('\\', '/')
 #sys.path.append(ROOT_DIR)
 
-CONFIG = ROOT_DIR + "/checkpoints/seg_model_4/Upernet_swin_256x512.py"
+CONFIG = ROOT_DIR + "/checkpoints/swim_seg/upernet_swin_small_patch4_window7_512x1024_80k.py"
 
-WORK_DIR = ROOT_DIR + "/checkpoints/seg_model_4"
+WORK_DIR = ROOT_DIR + "/checkpoints/swim_seg"
 SHOW_DIR = WORK_DIR + "/painted"
 FORMAT_ONLY = False
-CHECKPOINT = ROOT_DIR + "/checkpoints/seg_model_4/latest.pth"
+CHECKPOINT = ROOT_DIR + "/checkpoints/swim_seg/iter_80000.pth"
 OUT = None
 EVAL = "mIoU"
-
-@DATASETS.register_module()
-class FoodDataset(CustomDataset):
-    def format_results(self, results, imgfile_prefix, indices=None, **kwargs):
-        pass
-
-    #CLASSES = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
-    #           21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40,
-    #           41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60,
-    #           61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80,
-    #           81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100,
-    #           101, 102, 103)
-
-    # Train on ONLY apples.
-    CLASSES = (0, 25)
-    
-    PALETTE = [[0, 0, 0], [40, 100, 150]]
-
-    def __init__(self, split, **kwargs):
-        super().__init__(img_suffix='.jpg', seg_map_suffix='.png', **kwargs)
-        assert os.path.exists(self.img_dir) and os.path.exists(self.ann_dir)
-
 
 def main():
     cfg = mmcv.Config.fromfile(CONFIG)
@@ -97,20 +77,26 @@ def main():
     # build the model and load checkpoint
     cfg.model.train_cfg = None
     model = build_segmentor(cfg.model, test_cfg=cfg.get('test_cfg'))
+
     fp16_cfg = cfg.get('fp16', None)
+
     if fp16_cfg is not None:
         wrap_fp16_model(model)
     checkpoint = load_checkpoint(model, CHECKPOINT, map_location='cpu')
-    if 'CLASSES' in checkpoint.get('meta', {}):
-        model.CLASSES = checkpoint['meta']['CLASSES']
-    else:
-        print('"CLASSES" not found in meta, use dataset.CLASSES instead')
-        model.CLASSES = dataset.CLASSES
-    if 'PALETTE' in checkpoint.get('meta', {}):
-        model.PALETTE = checkpoint['meta']['PALETTE']
-    else:
-        print('"PALETTE" not found in meta, use dataset.PALETTE instead')
-        model.PALETTE = dataset.PALETTE
+    #if 'CLASSES' in checkpoint.get('meta', {}):
+    #    model.CLASSES = checkpoint['meta']['CLASSES']
+    #    print("CLASS METADATA!")
+    #    print(checkpoint['meta']['CLASSES'])
+    #else:
+    #    print('"CLASSES" not found in meta, use dataset.CLASSES instead')
+
+    # Checkpoint author did not properly add classes to the CLASSES metadata
+    model.CLASSES = dataset.CLASSES
+    #if 'PALETTE' in checkpoint.get('meta', {}):
+    #    model.PALETTE = checkpoint['meta']['PALETTE']
+    #else:
+    #    print('"PALETTE" not found in meta, use dataset.PALETTE instead')
+    model.PALETTE = dataset.PALETTE
 
     # clean gpu memory when starting a new evaluation.
     torch.cuda.empty_cache()
