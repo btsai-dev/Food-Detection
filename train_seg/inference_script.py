@@ -31,8 +31,9 @@ CONFIG = ROOT_DIR + "/checkpoints/swim_seg/upernet_swin_small_patch4_window7_512
 
 WORK_DIR = ROOT_DIR + "/checkpoints/swim_seg"
 SHOW_DIR = WORK_DIR + "/painted"
-FORMAT_ONLY = False
 CHECKPOINT = ROOT_DIR + "/checkpoints/swim_seg/iter_80000.pth"
+
+FORMAT_ONLY = False
 OUT = None
 EVAL = "mIoU"
 
