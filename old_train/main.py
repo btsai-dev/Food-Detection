@@ -1,3 +1,4 @@
+import argparse
 import sys
 import os
 from pathlib import Path
@@ -36,6 +37,10 @@ VAL_IMGS = os.path.join(VAL_DIR, 'images')
 register_coco_instances('FoodDataset_Train', {}, TRAIN_JSON, TRAIN_IMGS)
 register_coco_instances('FoodDataset_Test', {}, TEST_JSON, TEST_IMGS)
 register_coco_instances('FoodDataset_Val', {}, VAL_JSON, VAL_IMGS)
+
+def get_args():
+    parser =argparse.ArgumentParser(description='Food segmentation training')
+    parser.add_argument('--')
 
 
 def FoodConfig(num_classes):

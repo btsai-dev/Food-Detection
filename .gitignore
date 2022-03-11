@@ -151,3 +151,11 @@ crashlytics-build.properties
 fabric.properties
 
 
+
+checkpoints/
+
+pretrained_configs/
+
+verify_mmseg/
+
+mmseg_checkpoint/
