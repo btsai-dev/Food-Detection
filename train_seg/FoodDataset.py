@@ -37,6 +37,6 @@ class FoodDataset(CustomDataset):
     def format_results(self, results, imgfile_prefix, indices=None, **kwargs):
         pass
 
-    def __init__(self, split, **kwargs):
+    def __init__(self, **kwargs):
         super().__init__(img_suffix='.jpg', seg_map_suffix='.png', **kwargs)
         assert os.path.exists(self.img_dir) and os.path.exists(self.ann_dir)

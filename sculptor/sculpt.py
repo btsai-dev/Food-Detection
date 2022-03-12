@@ -113,7 +113,7 @@ def main():
     frame_img_pths = sorted(glob.glob(os.path.join(collection_path, "frame*.jpg")))
     model_pth = glob.glob(os.path.join(collection_path, "*export.obj"))[0]
 
-    # First, pre-compute the results from trained models and store in directory
+    # First, pre-compute the results from trained food_models and store in directory
     frame_results = model_execute(frame_img_pths)
 
     # Dictionary mapping json file path to image path
