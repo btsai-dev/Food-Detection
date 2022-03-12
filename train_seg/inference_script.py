@@ -27,11 +27,11 @@ from FoodDataset import FoodDataset
 ROOT_DIR = str(Path(__file__).resolve().parents[1]).replace('\\', '/')
 #sys.path.append(ROOT_DIR)
 
-CONFIG = "/home/gvc/Documents/gitprojects/Food-Detection/train_seg/config/upernet_swin_base_patch4_window7_512x1024_80k.py"
+CONFIG = os.path.join(ROOT_DIR, "train_seg", "config", "upernet_swin_base_patch4_window7_512x1024_80k.py")
 
 WORK_DIR = "./work_dirs"
 SHOW_DIR = WORK_DIR + "/painted"
-CHECKPOINT = "/home/gvc/Documents/gitprojects/Food-Detection/train_seg/checkpoints/modified.pth"
+CHECKPOINT = os.path.join(ROOT_DIR, "train_seg", "checkpoints", "modified.pth")
 
 FORMAT_ONLY = False
 OUT = None

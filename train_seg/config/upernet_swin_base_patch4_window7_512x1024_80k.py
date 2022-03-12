@@ -51,7 +51,7 @@ model = dict(
     train_cfg=dict(),
     test_cfg=dict(mode='whole'))
 dataset_type = 'FoodDataset'
-data_root = "/home/gvc/Documents/FoodSeg103/Images/"
+data_root = "D:\\_RAW_DATASET\\FoodSeg103\\FoodSeg103\\Images"
 img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
 crop_size = (512, 1024)
@@ -94,7 +94,7 @@ data = dict(
     workers_per_gpu=4,
     train=dict(
         type='FoodDataset',
-        data_root="/home/gvc/Documents/FoodSeg103/Images/",
+        data_root=data_root,
         img_dir='img_dir/train',
         ann_dir='ann_dir/train',
         pipeline=[
@@ -115,7 +115,7 @@ data = dict(
         ]),
     val=dict(
         type='FoodDataset',
-        data_root="/home/gvc/Documents/FoodSeg103/Images/",
+        data_root=data_root,
         img_dir='img_dir/test',
         ann_dir='ann_dir/test',
         pipeline=[
@@ -138,7 +138,7 @@ data = dict(
         ]),
     test=dict(
         type='FoodDataset',
-        data_root='/home/gvc/Documents/FoodSeg103/Images/',
+        data_root=data_root,
         img_dir='img_dir/test',
         ann_dir='ann_dir/test',
         pipeline=[
