@@ -154,5 +154,7 @@ fabric.properties
 detectron2/
 
 checkpoints/
-
 train_seg/work_dirs/painted/
+
+sculptor/model_collection/banana_infer/*.png
+sculptor/model_collection/banana_infer/*.jpg
