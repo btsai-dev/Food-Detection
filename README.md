@@ -1,7 +1,7 @@
 Food Detection
 
 
-# How to Quickly set up on Windows
+# How to set up on Windows
 1. Requirements:
     - Windows 10/11 with Python > 3.8
     - Cuda > 10.2
@@ -20,18 +20,18 @@ Food Detection
     - Go to PyTorch's website for local installation based on CUDA settings
         - Example: `conda install pytorch torchvision torchaudio cudatoolkit=11.3 -c pytorch`
 
-4. Install detectron2
-    - ivanpp has a repository with modified patches for windows
+4. Build and install mmcv for FoodSeg03 default models
+    - Follow steps: https://mmcv.readthedocs.io/en/latest/get_started/build.html
+
+5. Install detectron2 for new FoodSeg model
+    - I have a repository with modified patches for windows
     - Execute the following:
-        - `git clone https://github.com/ivanpp/detectron2.git`
+        - `git clone https://github.com/btsai-dev/detectron2.git`
         - `cd detectron2`
         - `pip install -e .`
     - Check your environment:
         - `python -m detectron2.utils.collect_env`
         - CUDA compiler version should be same ason PyTorch is built for
-        
-5. Install opencv
-    -  `conda install -c conda-forge opencv`
 
 6. Install pywin32
     - Provides access to Windows API
