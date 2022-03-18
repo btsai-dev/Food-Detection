@@ -153,7 +153,7 @@ def main():
 
     frame_json_pths = sorted(glob.glob(os.path.join(collection_path, "frame*.json")))
     frame_img_pths = sorted(glob.glob(os.path.join(collection_path, "frame*.jpg")))
-    model_pth = glob.glob(os.path.join(collection_path, "*export.obj"))[0]
+    model_pth = glob.glob(os.path.join(collection_path, "*export_simplified.obj"))[0]
 
     # First, pre-compute the results from trained food_models and store in directory
     frame_results = model_execute(frame_img_pths)
@@ -250,6 +250,8 @@ def main():
                     print("Crack slipthrough!")
 
             # Increase weight of a detection against the background
+
+            """
             voting_weight_5 = {}
             for key in voting_list.keys():
                 if key != "0":
@@ -272,6 +274,7 @@ def main():
                 else:
                     voting_weight_20[key] = voting_list[key]
 
+            """
 
             voting_weight_40 = {}
             for key in voting_list.keys():
@@ -287,14 +290,14 @@ def main():
             new_vert_color_1 = palette[str(max(voting_list, key=voting_list.get))]
             mesh_weight_1.visual.vertex_colors[vertex_idx] = new_vert_color_1
 
-            new_vert_color_5 = palette[str(max(voting_weight_5, key=voting_weight_5.get))]
-            mesh_weight_5.visual.vertex_colors[vertex_idx] = new_vert_color_5
+            #new_vert_color_5 = palette[str(max(voting_weight_5, key=voting_weight_5.get))]
+            #mesh_weight_5.visual.vertex_colors[vertex_idx] = new_vert_color_5
 
-            new_vert_color_10 = palette[str(max(voting_weight_10, key=voting_weight_10.get))]
-            mesh_weight_10.visual.vertex_colors[vertex_idx] = new_vert_color_10
+            #new_vert_color_10 = palette[str(max(voting_weight_10, key=voting_weight_10.get))]
+            #mesh_weight_10.visual.vertex_colors[vertex_idx] = new_vert_color_10
 
-            new_vert_color_20 = palette[str(max(voting_weight_20, key=voting_weight_20.get))]
-            mesh_weight_20.visual.vertex_colors[vertex_idx] = new_vert_color_20
+            #new_vert_color_20 = palette[str(max(voting_weight_20, key=voting_weight_20.get))]
+            #mesh_weight_20.visual.vertex_colors[vertex_idx] = new_vert_color_20
 
             new_vert_color_40 = palette[str(max(voting_weight_40, key=voting_weight_40.get))]
             mesh_weight_40.visual.vertex_colors[vertex_idx] = new_vert_color_40
@@ -316,11 +319,11 @@ def main():
     mesh_weight_20.show()
     mesh_weight_40.show()
 
-    mesh_weight_1.write('./mesh1/mesh1.ply')
-    mesh_weight_5.write('./mesh5/mesh1.ply')
-    mesh_weight_10.write('./mesh10/mesh1.ply')
-    mesh_weight_20.write('./mesh20/mesh1.ply')
-    mesh_weight_40.write('./mesh40/mesh1.ply')
+    #mesh_weight_1.write(os.path.join("inference_out", 'mesh1/mesh1.ply'))
+    #mesh_weight_5.write(os.path.join("inference_out", 'mesh5/mesh1.ply'))
+    #mesh_weight_10.write(os.path.join("inference_out", 'mesh10/mesh1.ply'))
+    #mesh_weight_20.write(os.path.join("inference_out", 'mesh20/mesh1.ply'))
+    #mesh_weight_40.write(os.path.join("inference_out", 'mesh40/mesh1.ply'))
 
 
         
