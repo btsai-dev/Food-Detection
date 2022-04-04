@@ -241,19 +241,23 @@ def exec_model(meshFrames, name="output.ply", show=False, texture=True):
     print(process.communicate()[0])
 
     # Apply texture from .obj + texture img to PLY file
+
+    ms = pymeshlab.MeshSet()
+    ms.load_new_mesh(tmp_obj_out)
+
+    out_dict = ms.compute_geometric_measures()
+    mesh_volume = out_dict['mesh_volume'] * 1000000
     if texture:
         textured_obj_pth = glob.glob(os.path.join(banana_textured_path, '*.obj'))[0]
-
-        ms = pymeshlab.MeshSet()
-        ms.load_new_mesh(tmp_obj_out)
         ms.load_new_mesh(textured_obj_pth)
-
         ms.set_current_mesh(0)
         ms.apply_filter('transfer_texture_to_color_per_vertex', sourcemesh=1, targetmesh=0)
         ms.save_current_mesh(os.path.join(out_path, name))
     else:
         shutil.move(tmp_obj_out, os.path.join(out_path, name))
-    return os.path.join(out_path, name)
+
+
+    return os.path.join(out_path, name), mesh_volume
 
 
 
@@ -261,7 +265,6 @@ def main():
 
     bananaFrames = FramesObject(
         glob.glob(os.path.join(banana_frame_path, "*export.obj")),
-        #glob.glob(os.path.join(banana_frame_path, "*.obj")),
         glob.glob(os.path.join(banana_img_path, "frame*.jpg")),
         glob.glob(os.path.join(banana_mask_path, "frame*.png")),
         glob.glob(os.path.join(banana_frame_path, "frame*.json"))
@@ -275,17 +278,12 @@ def main():
     )
     global WEIGHT
     WEIGHT = 0.5
-    apple_textured_pth = exec_model(appleFrames, "apple_textured.ply")
+    apple_textured_pth, apple_volume = exec_model(appleFrames, "apple_textured.ply")
     WEIGHT = 50
-    banana_textured_pth = exec_model(bananaFrames, "banana_textured.ply")
+    banana_textured_pth, banana_volume = exec_model(bananaFrames, "banana_textured.ply")
 
-    #apple_textured_mesh = trimesh.load(apple_textured_pth, process=False)
-    #banana_textured_mesh = trimesh.load(banana_textured_pth, process=False)
-
-    #apple_textured_mesh.show()
-    #banana_textured_mesh.show()
-
-
+    print("Apple volume (cm^3):", apple_volume)
+    print("Banana volume (cm&3:", banana_volume)
 
 
 if __name__ == "__main__":
