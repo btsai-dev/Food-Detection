@@ -18,6 +18,7 @@ import pyglet
 import cProfile
 import pstats
 from matplotlib.colors import ListedColormap
+from matplotlib.pyplot import cm
 import time
 import subprocess
 import pymeshlab
@@ -29,23 +30,13 @@ from collections import Counter
 
 from FramesObject import FramesObject
 
+DEBUG = False
 WEIGHT = 1
 
 ROOT_DIR = str(Path(__file__).resolve().parents[1])
 
 data_path = os.path.join(ROOT_DIR, "data")
 
-banana_data_path = os.path.join(data_path, "banana")
-banana_img_path = os.path.join(banana_data_path, "img")
-banana_mask_path = os.path.join(banana_data_path, "mask")
-banana_frame_path = os.path.join(banana_data_path, "frame_data")
-banana_textured_path = os.path.join(banana_data_path, "textured")
-
-apple_data_path = os.path.join(data_path, "apple")
-apple_img_path = os.path.join(apple_data_path, "img")
-apple_mask_path = os.path.join(apple_data_path, "mask")
-apple_frame_path = os.path.join(apple_data_path, "frame_data")
-apple_textured_path = os.path.join(apple_data_path, "textured")
 
 palette = {
     '0': np.array([255, 0, 0, 255]),
@@ -105,18 +96,72 @@ def map3dto2d(vertex_np, frame_json, dims):
     projection_matrix = np.reshape(projection_matrix, (4, 4))
     camera_pose = np.reshape(camera_pose, (4, 4))
 
-    # print(p3d)
-    # print(projection_matrix.shape)
-    # print(camera_pose)
-
     return _Map3DTo2D(p3d, projection_matrix, camera_pose, image_width, image_height)
 
 
-def process_model(meshFrames, meshObj):
+def heatmap_model(meshFrames, meshObj):
     meshFaces = meshObj.faces
-    bananaVertices = meshObj.vertices
+    meshVertices = meshObj.vertices
 
-    face_colors_arr = meshObj.visual.face_colors
+    numFaces = len(meshFaces)
+
+    ime_arr = []
+    for img_idx in tqdm(range(len(meshFrames.img_list))):
+        ime_arr.append(np.asarray(Image.open(meshFrames.get_img(img_idx))))
+
+    # To minimize hard disk I/O during mask reading:
+    mask_arr = []
+    for mask_idx in tqdm(range(len(meshFrames.mask_list))):
+        mask_arr.append(np.asarray(Image.open(meshFrames.get_mask(mask_idx)).convert('L')))
+
+    json_arr = []
+    for json_idx in tqdm(range(len(meshFrames.frame_list))):
+        json_arr.append(json.load(open(meshFrames.get_frame(json_idx))))
+
+    for face_idx in tqdm(range(numFaces)):
+        face = meshFaces[face_idx]
+        # a face is made up of a size-3 array indexing the mesh.vertices
+        if len(face) != 3:
+            raise AttributeError("Error: Only triangle faces allowed! Should have been caught at mesh import!")
+        vtx1 = face[0]
+        vtx2 = face[1]
+        vtx3 = face[2]
+        midpoint = np.array([
+            (meshVertices[vtx1][0] + meshVertices[vtx2][0] + meshVertices[vtx3][0]) / 3,
+            (meshVertices[vtx1][1] + meshVertices[vtx2][1] + meshVertices[vtx3][1]) / 3,
+            (meshVertices[vtx1][2] + meshVertices[vtx2][2] + meshVertices[vtx3][2]) / 3,
+        ])
+
+        # Loop through frame data
+        valid_frames = 0
+        heatmap = plt.cm.get_cmap('hot', len(meshFrames))
+        for frame_idx in range(len(meshFrames)):
+            # mask_np = np.asarray(Image.open(mask_path).convert('P'))
+            mask_np = mask_arr[frame_idx]
+
+            # frame_json = json.load(open(frame_path))
+            frame_json = json_arr[frame_idx]
+
+            dims = (mask_np.shape[1], mask_np.shape[0])
+            mapped_coord = map3dto2d(midpoint, frame_json, dims)
+
+            if mapped_coord:
+                valid_frames += 1
+
+
+        new_facecolor = heatmap(valid_frames)
+        new_facecolor = np.array([
+            int(new_facecolor[0]*255),
+            int(new_facecolor[1]*255),
+            int(new_facecolor[2]*255),
+            int(new_facecolor[3]*255)
+        ])
+        meshObj.visual.face_colors[face_idx] = new_facecolor
+
+
+def process_model(meshFrames, meshObj, cull=True):
+    meshFaces = meshObj.faces
+    meshVertices = meshObj.vertices
 
     numFaces = len(meshFaces)
 
@@ -144,9 +189,9 @@ def process_model(meshFrames, meshObj):
         vtx2 = face[1]
         vtx3 = face[2]
         midpoint = np.array([
-            (bananaVertices[vtx1][0] + bananaVertices[vtx2][0] + bananaVertices[vtx3][0]) / 3,
-            (bananaVertices[vtx1][1] + bananaVertices[vtx2][1] + bananaVertices[vtx3][1]) / 3,
-            (bananaVertices[vtx1][2] + bananaVertices[vtx2][2] + bananaVertices[vtx3][2]) / 3,
+            (meshVertices[vtx1][0] + meshVertices[vtx2][0] + meshVertices[vtx3][0]) / 3,
+            (meshVertices[vtx1][1] + meshVertices[vtx2][1] + meshVertices[vtx3][1]) / 3,
+            (meshVertices[vtx1][2] + meshVertices[vtx2][2] + meshVertices[vtx3][2]) / 3,
         ])
 
         # Loop through frame data
@@ -168,15 +213,22 @@ def process_model(meshFrames, meshObj):
                 coord = (int(mapped_coord[0]), int(mapped_coord[1]))
                 # print(coord)
                 class_idx = mask_np[coord[1], coord[0]]
-                # fig, ax = plt.subplots()
-                # ax.imshow(ime_arr[frame_idx], cmap=ListedColormap(['b', 'r'], N=2), vmin=0, vmax=1)
-                # if class_idx != 0:
-                #    circle = plt.Circle(coord, 50, color='g')
-                # else:
-                #    circle = plt.Circle(coord, 50, color='c')
-                # ax.add_patch(circle)
-                # plt.show()
-                # print("Class:", class_idx)
+
+                # Show predictions from masks
+                if DEBUG:
+                    fig, ax = plt.subplots(2)
+                    ax[0].imshow(ime_arr[frame_idx], cmap=ListedColormap(['b', 'r'], N=2), vmin=0, vmax=1)
+                    ax[1].imshow(mask_np, cmap=ListedColormap(['b', 'r'], N=2), vmin=0, vmax=1)
+                    if class_idx != 0:
+                       circle1= plt.Circle(coord, 50, color='g')
+                       circle2 = plt.Circle(coord, 50, color='g')
+                    else:
+                       circle1 = plt.Circle(coord, 50, color='c')
+                       circle2 = plt.Circle(coord, 50, color='c')
+                    ax[0].add_patch(circle1)
+                    ax[1].add_patch(circle2)
+                    plt.show()
+                #print("Class:", class_idx)
                 weight = 1
                 if class_idx != 0:
                     weight = WEIGHT
@@ -191,24 +243,25 @@ def process_model(meshFrames, meshObj):
         # Voting mechanism
         # print(voting_list)
         cat = max(voting_list, key=voting_list.get)
-        if cat != "0":
-            face_boolmask[face_idx] = True
+        if cull:
+            if cat != "0":
+                face_boolmask[face_idx] = True
+        else:
+            new_facecolor = palette[cat]
+            meshObj.visual.face_colors[face_idx] = new_facecolor
 
-        #new_facecolor = palette[cat]
-        #meshObj.visual.face_colors[face_idx] = new_facecolor
+    if cull:
+        # Update faces with face mask
+        meshObj.update_faces(face_boolmask)
 
-    # Update faces with face mask
-    meshObj.update_faces(face_boolmask)
+        # Now we need to delete those isolated vertices
+        meshObj.remove_unreferenced_vertices()
 
-    # Now we need to delete those isolated vertices
-    meshObj.remove_unreferenced_vertices()
-
-    # Merge those duplicate vertices
-    meshObj.merge_vertices(merge_tex=True, merge_norm=True)
+        # Merge those duplicate vertices
+        meshObj.merge_vertices(merge_tex=True, merge_norm=True)
 
 
-def exec_model(meshFrames, name="output.ply", show=False, texture=True):
-    out_path = "out"
+def exec_model(meshFrames, out_path="out", out_name="output.ply", show=False, cull=True, texture=False):
     if not os.path.exists(out_path):
         os.makedirs(out_path)
     tmp_path = "tmp"
@@ -216,16 +269,20 @@ def exec_model(meshFrames, name="output.ply", show=False, texture=True):
         os.makedirs(tmp_path)
 
     meshObjOrig = trimesh.load(meshFrames.model_path, process=False)
-    bananaObjCopy = meshObjOrig.copy()
-    process_model(meshFrames, bananaObjCopy)
+    meshObjCopy = meshObjOrig.copy()
+    process_model(meshFrames, meshObjCopy, cull=cull)
 
     if show:
-        bananaObjCopy.show()
+        # meshHeatCopy = meshObjOrig.copy()
+        # heatmap_model(meshFrames, meshHeatCopy)
+        # meshHeatCopy.show()
+        meshObjCopy.show()
 
     tmp_obj_in = os.path.join(tmp_path, 'output.stl')
     tmp_obj_out = os.path.join(tmp_path, 'output.ply')
 
-    bananaObjCopy.export(tmp_obj_in)
+    # Export object to folder
+    meshObjCopy.export(tmp_obj_in)
 
     # Use PolyMender to hole-fill and whatnot
     command = ["PolyMender", tmp_obj_in, "6", "0.9", tmp_obj_out]
@@ -233,57 +290,59 @@ def exec_model(meshFrames, name="output.ply", show=False, texture=True):
     process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE)
     process.wait()
     print("PolyMender Done.")
-    if process.returncode == 0:
-        print("No Problems. ")
-    else:
-        print("Error while executing PolyMender.")
+    #if process.returncode == 0:
+    #    print("No Problems. ")
+    #else:
+    #    print("Error while executing PolyMender.")
     print("Console Output:")
-    print(process.communicate()[0])
+    print(process.communicate()[0].decode('ascii'))
 
-    # Apply texture from .obj + texture img to PLY file
-
+    # Load MeshLab python API to compute volume
     ms = pymeshlab.MeshSet()
     ms.load_new_mesh(tmp_obj_out)
-
-    out_dict = ms.compute_geometric_measures()
+    out_dict = ms.get_geometric_measures()
     mesh_volume = out_dict['mesh_volume'] * 1000000
+
     if texture:
-        textured_obj_pth = glob.glob(os.path.join(banana_textured_path, '*.obj'))[0]
+
+        # Apply texture from .obj + texture img to PLY file
+        textured_obj_pth = meshFrames.tex_obj
         ms.load_new_mesh(textured_obj_pth)
         ms.set_current_mesh(0)
         ms.apply_filter('transfer_texture_to_color_per_vertex', sourcemesh=1, targetmesh=0)
-        ms.save_current_mesh(os.path.join(out_path, name))
+        ms.save_current_mesh(os.path.join(out_path, out_name))
     else:
-        shutil.move(tmp_obj_out, os.path.join(out_path, name))
+        shutil.move(tmp_obj_out, os.path.join(out_path, out_name))
 
-
-    return os.path.join(out_path, name), mesh_volume
+    return os.path.join(out_path, out_name), mesh_volume
 
 
 
 def main():
+    green_apple_folder = os.path.join(data_path, "green_apple", "green_apple-very_close_16_54_52")
+    green_apple_masks = os.path.join(data_path, "green_apple", "mask")
 
-    bananaFrames = FramesObject(
-        glob.glob(os.path.join(banana_frame_path, "*export.obj")),
-        glob.glob(os.path.join(banana_img_path, "frame*.jpg")),
-        glob.glob(os.path.join(banana_mask_path, "frame*.png")),
-        glob.glob(os.path.join(banana_frame_path, "frame*.json"))
+    green_appleFrames = FramesObject(
+        model_path=glob.glob(os.path.join(green_apple_folder, "export.obj"))[0],
+        img_list=glob.glob(os.path.join(green_apple_folder, "frame*.jpg")),
+        mask_list=glob.glob(os.path.join(green_apple_masks, "frame*.png")),
+        frame_list=glob.glob(os.path.join(green_apple_folder, "frame*.json"))
     )
+    green_appleFrames.add_texobj(glob.glob(os.path.join(green_apple_folder, "textured_output.obj"))[0])
 
-    appleFrames = FramesObject(
-        glob.glob(os.path.join(apple_frame_path, "*export.obj")),
-        glob.glob(os.path.join(apple_img_path, "frame*.jpg")),
-        glob.glob(os.path.join(apple_mask_path, "frame*.png")),
-        glob.glob(os.path.join(apple_frame_path, "frame*.json"))
-    )
     global WEIGHT
-    WEIGHT = 0.5
-    apple_textured_pth, apple_volume = exec_model(appleFrames, "apple_textured.ply")
-    WEIGHT = 50
-    banana_textured_pth, banana_volume = exec_model(bananaFrames, "banana_textured.ply")
+    # Bias detections against background.
+    WEIGHT = 1
+    green_apple_textured_pth, green_apple_volume = exec_model(
+        green_appleFrames,
+        out_path="out\\green_apple",
+        out_name="green_apple_textured.ply",
+        show=True,
+        texture=True
+    )
 
-    print("Apple volume (cm^3):", apple_volume)
-    print("Banana volume (cm&3:", banana_volume)
+    print("Apple volume (cm^3):", green_apple_volume)
+    #print("Banana volume (cm&3:", banana_volume)
 
 
 if __name__ == "__main__":
