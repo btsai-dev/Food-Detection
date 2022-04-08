@@ -1,4 +1,5 @@
 import os
+import warnings
 from pathlib import Path
 
 
@@ -13,6 +14,12 @@ class FramesObject:
         print("Loaded", len(img_list), "images.")
         print("Loaded", len(mask_list), "masks.")
         print("Loaded", len(frame_list), "frame data.")
+        if len(img_list) == 0:
+            warnings.warn("No imgs found!")
+        if len(mask_list)==0:
+            warnings.warn("No masks found!")
+        if len(frame_list)==0:
+            warnings.warn("No frame data found!")
 
     def add_texobj(self, obj_path):
         self.tex_obj = obj_path

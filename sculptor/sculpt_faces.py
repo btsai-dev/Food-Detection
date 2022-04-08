@@ -43,6 +43,29 @@ palette = {
     '1': np.array([0, 0, 255, 255])
 }
 
+def compute_camera_info(extrinsic):
+    """
+    Accepts a nd.array 4x4 matrix containing extrinsic information
+
+    Formula: 0 = R_3x3 * C_3x1 + T_3x1
+    If extrinisic matrix is defined as:
+        [R_3x3 T_3x1]
+        [0_1x3 1    ]
+
+    Position: C = -transpose(R) * T
+    Rotation: Z = transpose(R) * transpose([0 0 1])
+    :param extrinsic: Extrinsic matrix, aka cameraARPoseFrame
+    :return: World coordinates, and orientation
+    """
+    R = extrinsic[:3, :3]
+    T = extrinsic[:3, 1]
+    R_transpose = np.transpose(R) * np.array([[0], [0], [1]])
+    print(R)
+    print(T)
+    print(R_transpose)
+    return R_transpose
+
+
 
 last_time = time.time()
 
@@ -126,6 +149,7 @@ def heatmap_model(meshFrames, meshObj):
         vtx1 = face[0]
         vtx2 = face[1]
         vtx3 = face[2]
+
         midpoint = np.array([
             (meshVertices[vtx1][0] + meshVertices[vtx2][0] + meshVertices[vtx3][0]) / 3,
             (meshVertices[vtx1][1] + meshVertices[vtx2][1] + meshVertices[vtx3][1]) / 3,
@@ -134,7 +158,8 @@ def heatmap_model(meshFrames, meshObj):
 
         # Loop through frame data
         valid_frames = 0
-        heatmap = plt.cm.get_cmap('hot', len(meshFrames))
+        heatmap = plt.cm.get_cmap('hot', len(meshFrames))\
+
         for frame_idx in range(len(meshFrames)):
             # mask_np = np.asarray(Image.open(mask_path).convert('P'))
             mask_np = mask_arr[frame_idx]
@@ -159,7 +184,7 @@ def heatmap_model(meshFrames, meshObj):
         meshObj.visual.face_colors[face_idx] = new_facecolor
 
 
-def process_model(meshFrames, meshObj, cull=True):
+def process_model(meshFrames, meshObj, cull=True, debug_segmodel=False):
     meshFaces = meshObj.faces
     meshVertices = meshObj.vertices
 
@@ -181,6 +206,7 @@ def process_model(meshFrames, meshObj, cull=True):
     # Mask from which to delete faces
     face_boolmask = [False] * numFaces
     for face_idx in tqdm(range(numFaces)):
+
         face = meshFaces[face_idx]
         # a face is made up of a size-3 array indexing the mesh.vertices
         if len(face) != 3:
@@ -197,8 +223,10 @@ def process_model(meshFrames, meshObj, cull=True):
         # Loop through frame data
 
         voting_list = {}
+
         for frame_idx in range(len(meshFrames)):
-            img_path, mask_path, frame_path = meshFrames[frame_idx]
+
+            #img_path, mask_path, frame_path = meshFrames[frame_idx]
 
             # mask_np = np.asarray(Image.open(mask_path).convert('P'))
             mask_np = mask_arr[frame_idx]
@@ -215,8 +243,10 @@ def process_model(meshFrames, meshObj, cull=True):
                 class_idx = mask_np[coord[1], coord[0]]
 
                 # Show predictions from masks
-                if DEBUG:
+
+                if debug_segmodel:
                     fig, ax = plt.subplots(2)
+                    #fig.canvas.restore_region()
                     ax[0].imshow(ime_arr[frame_idx], cmap=ListedColormap(['b', 'r'], N=2), vmin=0, vmax=1)
                     ax[1].imshow(mask_np, cmap=ListedColormap(['b', 'r'], N=2), vmin=0, vmax=1)
                     if class_idx != 0:
@@ -227,7 +257,9 @@ def process_model(meshFrames, meshObj, cull=True):
                        circle2 = plt.Circle(coord, 50, color='c')
                     ax[0].add_patch(circle1)
                     ax[1].add_patch(circle2)
+
                     plt.show()
+
                 #print("Class:", class_idx)
                 weight = 1
                 if class_idx != 0:
@@ -237,6 +269,7 @@ def process_model(meshFrames, meshObj, cull=True):
                     voting_list[str(class_idx)] += 1 * weight
                 else:
                     voting_list[str(class_idx)] = 1 * weight
+
         # print(cat)
         # Remember that categories are strings!
 
@@ -261,7 +294,15 @@ def process_model(meshFrames, meshObj, cull=True):
         meshObj.merge_vertices(merge_tex=True, merge_norm=True)
 
 
-def exec_model(meshFrames, out_path="out", out_name="output.ply", show=False, cull=True, texture=False):
+def exec_model(
+        meshFrames,
+        out_path="out",
+        out_name="output.ply",
+        show=False,
+        cull=True,
+        texture=False,
+        heatmap=False,
+        debug_segmodel=False):
     if not os.path.exists(out_path):
         os.makedirs(out_path)
     tmp_path = "tmp"
@@ -270,12 +311,14 @@ def exec_model(meshFrames, out_path="out", out_name="output.ply", show=False, cu
 
     meshObjOrig = trimesh.load(meshFrames.model_path, process=False)
     meshObjCopy = meshObjOrig.copy()
-    process_model(meshFrames, meshObjCopy, cull=cull)
+    process_model(meshFrames, meshObjCopy, cull=cull, debug_segmodel=debug_segmodel)
+
+    if heatmap:
+        meshHeatCopy = meshObjOrig.copy()
+        heatmap_model(meshFrames, meshHeatCopy)
+        meshHeatCopy.show()
 
     if show:
-        # meshHeatCopy = meshObjOrig.copy()
-        # heatmap_model(meshFrames, meshHeatCopy)
-        # meshHeatCopy.show()
         meshObjCopy.show()
 
     tmp_obj_in = os.path.join(tmp_path, 'output.stl')
@@ -319,30 +362,38 @@ def exec_model(meshFrames, out_path="out", out_name="output.ply", show=False, cu
 
 
 def main():
-    green_apple_folder = os.path.join(data_path, "green_apple", "green_apple-very_close_16_54_52")
-    green_apple_masks = os.path.join(data_path, "green_apple", "mask")
+    #green_apple_folder = os.path.join(data_path, "green_apple", "green_apple-very_close_16_54_52")
+    #green_apple_masks = os.path.join(data_path, "green_apple", "mask")
 
-    green_appleFrames = FramesObject(
-        model_path=glob.glob(os.path.join(green_apple_folder, "export.obj"))[0],
-        img_list=glob.glob(os.path.join(green_apple_folder, "frame*.jpg")),
-        mask_list=glob.glob(os.path.join(green_apple_masks, "frame*.png")),
-        frame_list=glob.glob(os.path.join(green_apple_folder, "frame*.json"))
+    banana_folder = os.path.join(data_path, "banana", "2022_04_07_13_39_59")
+    banana_masks = os.path.join(data_path, "banana", "masks")
+
+
+    used_folder = banana_folder
+    used_masks = banana_masks
+    frames = FramesObject(
+        model_path=glob.glob(os.path.join(used_folder, "export.obj"))[0],
+        img_list=glob.glob(os.path.join(used_folder, "frame*.jpg")),
+        mask_list=glob.glob(os.path.join(used_masks, "frame*.png")),
+        frame_list=glob.glob(os.path.join(used_folder, "frame*.json"))
     )
-    green_appleFrames.add_texobj(glob.glob(os.path.join(green_apple_folder, "textured_output.obj"))[0])
+    frames.add_texobj(glob.glob(os.path.join(used_folder, "textured_output.obj"))[0])
 
     global WEIGHT
     # Bias detections against background.
-    WEIGHT = 1
-    green_apple_textured_pth, green_apple_volume = exec_model(
-        green_appleFrames,
-        out_path="out\\green_apple",
-        out_name="green_apple_textured.ply",
+    WEIGHT = 20
+    ply_textured_pth, ply_volume = exec_model(
+        frames,
+        out_path="out\\banana",
+        out_name="banana_textured_2.ply",
         show=True,
-        texture=True
+        cull=True,
+        texture=True,
+        heatmap=True,
+        debug_segmodel=False
     )
 
-    print("Apple volume (cm^3):", green_apple_volume)
-    #print("Banana volume (cm&3:", banana_volume)
+    print("Volume (cm^3):", ply_volume)
 
 
 if __name__ == "__main__":
