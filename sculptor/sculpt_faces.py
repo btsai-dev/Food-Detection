@@ -14,9 +14,12 @@ try:
 except BaseException:
     import generic as g
 import numpy as np
+import warnings
+warnings.filterwarnings('error')
 import pyglet
 import cProfile
 import pstats
+from matplotlib.colors import Normalize
 from matplotlib.colors import ListedColormap
 from matplotlib.pyplot import cm
 import time
@@ -25,12 +28,13 @@ import pymeshlab
 import shutil
 import matplotlib.pyplot as plt
 
+import cv2
+
 np.set_printoptions(suppress=True)
 from collections import Counter
 
 from FramesObject import FramesObject
 
-DEBUG = False
 WEIGHT = 1
 
 ROOT_DIR = str(Path(__file__).resolve().parents[1])
@@ -40,12 +44,24 @@ data_path = os.path.join(ROOT_DIR, "data")
 
 palette = {
     '0': np.array([255, 0, 0, 255]),
-    '1': np.array([0, 0, 255, 255])
+    '1': np.array([0, 0, 255, 255]),
+    '255': np.array([0, 0, 255, 255])
 }
 
-def compute_camera_info(extrinsic):
+class DEBUG(object):
+    DONT_PROCESS = -1
+    SHOW_OBJ = 0
+    SHOW_HEATMAP = 1
+    SHOW_PARALLEL = 2
+    SHOW_SEGMENTS = 3
+
+MODE = DEBUG()
+
+
+def compute_camera_info(_extrinsic):
     """
     Accepts a nd.array 4x4 matrix containing extrinsic information
+    and a nd.array 3x3 matrix containing intrinsic information
 
     Formula: 0 = R_3x3 * C_3x1 + T_3x1
     If extrinisic matrix is defined as:
@@ -53,17 +69,20 @@ def compute_camera_info(extrinsic):
         [0_1x3 1    ]
 
     Position: C = -transpose(R) * T
-    Rotation: Z = transpose(R) * transpose([0 0 1])
+    Rotation: Z = Euler-Rodrigues
+    :param intrinsic: Intrinisc matrix, aka intrinsics
     :param extrinsic: Extrinsic matrix, aka cameraARPoseFrame
-    :return: World coordinates, and orientation
+    :return: Rotation vector, World coordinates, rotation matrix
     """
-    R = extrinsic[:3, :3]
-    T = extrinsic[:3, 1]
-    R_transpose = np.transpose(R) * np.array([[0], [0], [1]])
-    print(R)
-    print(T)
-    print(R_transpose)
-    return R_transpose
+    extrinsic = np.reshape(_extrinsic, (4, 4))
+    R = extrinsic[0:3, 0:3]     # Rotation matrix
+    T = extrinsic[0:3, 1]       # Translation vector
+
+    # Compute translation
+    R_T = np.transpose(R)
+    position = -1 * np.dot(R_T, T)
+    rot_Vec, _ = cv2.Rodrigues(R)
+    return np.squeeze(rot_Vec), position, extrinsic
 
 
 
@@ -92,16 +111,31 @@ def _Map3DTo2D(p3d, projection_matrix, camera_pose, image_width, image_height):
     """
     @author: Elham Ravanbakhsh
     """
+    #print("PARAMETERS")
+    #print("p3d", p3d)
+    #print("projection_matrix", projection_matrix)
+    #print("camera_pose", camera_pose)
+    #print("image_width", image_width)
+    #print("image_height", image_height)
     view_matrix = np.linalg.inv(camera_pose)
+    #print("---\nview_matrix", view_matrix)
     mvp = np.dot(projection_matrix, view_matrix)
+    #print("mvp", mvp)
     p0 = np.append(p3d, [1])
+    #print("p0", p0)
 
     e0 = np.dot(mvp, p0)
+    #print("e0", e0)
     e0[:3] /= e0[3]
+    #print("e0 after", e0)
     pos_x = e0[0]
     pos_y = e0[1]
+    #print("pos_x", pos_x)
+    #print("pos_y", pos_y)
     px = (0.5 + (pos_x) * 0.5) * image_width
     py = (1.0 - (0.5 + (pos_y) * 0.5)) * image_height
+    #print("pos_x", pos_x)
+    #print("pos_y", pos_y)
 
     if px >= 0 and px < image_width and py >= 0 and py < image_height:
         return px, py
@@ -122,7 +156,107 @@ def map3dto2d(vertex_np, frame_json, dims):
     return _Map3DTo2D(p3d, projection_matrix, camera_pose, image_width, image_height)
 
 
-def heatmap_model(meshFrames, meshObj):
+def heatmap_parallelism(meshFrames, meshObj):
+    """
+    Heatmap of regions that are parallel to camera orientation
+    :param meshFrames:
+    :param meshObj:
+    :return:
+    """
+    meshFaces = meshObj.faces
+    meshVertices = meshObj.vertices
+    meshNormals = meshObj.face_normals
+
+    numFaces = len(meshFaces)
+
+    img_arr = []
+    for img_idx in tqdm(range(len(meshFrames.img_list))):
+        img_arr.append(np.asarray(Image.open(meshFrames.get_img(img_idx))))
+
+    mask_arr = []
+    for mask_idx in tqdm(range(len(meshFrames.mask_list))):
+        mask_arr.append(np.asarray(Image.open(meshFrames.get_mask(mask_idx)).convert('L')))
+
+    json_arr = []
+    for json_idx in tqdm(range(len(meshFrames.frame_list))):
+        with open(meshFrames.get_frame(json_idx)) as f:
+            json_arr.append(json.load(f))
+
+
+    # Build a list of face parallelism values indexed by frame
+    frame_parallelism = {}
+    for face_idx in tqdm(range(numFaces)):
+        face = meshFaces[face_idx]
+        face_norm = meshNormals[face_idx]
+        # a face is made up of a size-3 array indexing the mesh.vertices
+        if len(face) != 3:
+            raise AttributeError("Error: Only triangle faces allowed! Should have been caught at mesh import!")
+        vtx1 = face[0]
+        vtx2 = face[1]
+        vtx3 = face[2]
+
+        midpoint = np.array([
+            (meshVertices[vtx1][0] + meshVertices[vtx2][0] + meshVertices[vtx3][0]) / 3,
+            (meshVertices[vtx1][1] + meshVertices[vtx2][1] + meshVertices[vtx3][1]) / 3,
+            (meshVertices[vtx1][2] + meshVertices[vtx2][2] + meshVertices[vtx3][2]) / 3,
+        ])
+
+        for frame_idx in range(len(meshFrames)):
+            # mask_np = np.asarray(Image.open(mask_path).convert('P'))
+            mask_np = mask_arr[frame_idx]
+
+            # frame_json = json.load(open(frame_path))
+            frame_json = json_arr[frame_idx]
+
+            dims = (mask_np.shape[1], mask_np.shape[0])
+            mapped_coord = map3dto2d(midpoint, frame_json, dims)
+
+            if mapped_coord:
+                cam_orientation, cam_position, rot_matrix = compute_camera_info(frame_json["cameraPoseARFrame"])
+                parallelism = np.abs(np.dot(cam_orientation, face_norm) / (np.linalg.norm(cam_orientation) * np.linalg.norm(face_norm)))
+                frame_idx_str = str(frame_idx)
+
+                if frame_idx_str in frame_parallelism:
+                    frame_parallelism[frame_idx_str]["num_faces"] += 1
+                    frame_parallelism[frame_idx_str]["coord"].append(mapped_coord)
+                    frame_parallelism[frame_idx_str]["parallelism"].append(parallelism)
+
+                else:
+                    frame_parallelism[frame_idx_str] = {
+                        "frame_idx": frame_idx,
+                        "num_faces": 1,
+                        "coord": [mapped_coord],
+                        "cam_orientation": [cam_orientation],
+                        "cam_position": [cam_position],
+                        "rot_vec": [rot_matrix],
+                        "parallelism": [parallelism]
+                    }
+
+
+    # Loop through each frame
+    for frame_idx_str in frame_parallelism:
+        frame = frame_parallelism[frame_idx_str]
+        fig, ax = plt.subplots()
+        # fig.canvas.restore_region()
+        ax.imshow(img_arr[frame["frame_idx"]])
+        norm = Normalize(vmin=-0, vmax=1)
+        #print(frame["num_faces"])
+        for i in range(frame["num_faces"]):
+            point_color = cm.hot(frame["parallelism"][i])
+            circle1 = plt.Circle(frame["coord"][i], 1, color=point_color)
+            ax.add_artist(circle1)
+        fig.colorbar(cm.ScalarMappable(norm=norm, cmap=cm.hot), ax=ax)
+
+        ax.text(-100, 0, "Position: " + str(frame["cam_position"]))
+        ax.text(-100, -200, "RotMatrix:" + str(frame["rot_vec"]), size=8)
+        print("Position: " + str(frame["cam_position"]))
+        print("Extrinsics: " + str(frame["rot_vec"]))
+        print("cam_orientation: " + str(frame["cam_orientation"]))
+        print()
+        plt.show()
+
+
+def heatmap_det(meshFrames, meshObj):
     meshFaces = meshObj.faces
     meshVertices = meshObj.vertices
 
@@ -139,7 +273,8 @@ def heatmap_model(meshFrames, meshObj):
 
     json_arr = []
     for json_idx in tqdm(range(len(meshFrames.frame_list))):
-        json_arr.append(json.load(open(meshFrames.get_frame(json_idx))))
+        with open(meshFrames.get_frame(json_idx)) as f:
+            json_arr.append(json.load(f))
 
     for face_idx in tqdm(range(numFaces)):
         face = meshFaces[face_idx]
@@ -158,7 +293,7 @@ def heatmap_model(meshFrames, meshObj):
 
         # Loop through frame data
         valid_frames = 0
-        heatmap = plt.cm.get_cmap('hot', len(meshFrames))\
+        heatmap = plt.cm.get_cmap('hot', len(meshFrames))
 
         for frame_idx in range(len(meshFrames)):
             # mask_np = np.asarray(Image.open(mask_path).convert('P'))
@@ -173,7 +308,7 @@ def heatmap_model(meshFrames, meshObj):
             if mapped_coord:
                 valid_frames += 1
 
-
+        # Reject if number of valid frames is less than 10% total
         new_facecolor = heatmap(valid_frames)
         new_facecolor = np.array([
             int(new_facecolor[0]*255),
@@ -184,9 +319,10 @@ def heatmap_model(meshFrames, meshObj):
         meshObj.visual.face_colors[face_idx] = new_facecolor
 
 
-def process_model(meshFrames, meshObj, cull=True, debug_segmodel=False):
+def process_model(meshFrames, meshObj, cull=True, debug=None):
     meshFaces = meshObj.faces
     meshVertices = meshObj.vertices
+    meshNormals = meshObj.face_normals
 
     numFaces = len(meshFaces)
 
@@ -201,12 +337,12 @@ def process_model(meshFrames, meshObj, cull=True, debug_segmodel=False):
 
     json_arr = []
     for json_idx in tqdm(range(len(meshFrames.frame_list))):
-        json_arr.append(json.load(open(meshFrames.get_frame(json_idx))))
+        with open(meshFrames.get_frame(json_idx)) as f:
+            json_arr.append(json.load(f))
 
     # Mask from which to delete faces
     face_boolmask = [False] * numFaces
     for face_idx in tqdm(range(numFaces)):
-
         face = meshFaces[face_idx]
         # a face is made up of a size-3 array indexing the mesh.vertices
         if len(face) != 3:
@@ -214,6 +350,8 @@ def process_model(meshFrames, meshObj, cull=True, debug_segmodel=False):
         vtx1 = face[0]
         vtx2 = face[1]
         vtx3 = face[2]
+        face_norm = meshNormals[face_idx]
+
         midpoint = np.array([
             (meshVertices[vtx1][0] + meshVertices[vtx2][0] + meshVertices[vtx3][0]) / 3,
             (meshVertices[vtx1][1] + meshVertices[vtx2][1] + meshVertices[vtx3][1]) / 3,
@@ -221,7 +359,6 @@ def process_model(meshFrames, meshObj, cull=True, debug_segmodel=False):
         ])
 
         # Loop through frame data
-
         voting_list = {}
 
         for frame_idx in range(len(meshFrames)):
@@ -243,11 +380,29 @@ def process_model(meshFrames, meshObj, cull=True, debug_segmodel=False):
                 class_idx = mask_np[coord[1], coord[0]]
 
                 # Show predictions from masks
+                #cam_orientation, cam_position, rot_matrix = compute_camera_info(frame_json["cameraPoseARFrame"])
 
-                if debug_segmodel:
+                # Compute how parallel the two are. Higher = more parallel.
+                #print(face_norm)
+                #print(cam_orientation)
+                #try:
+                #    parallelism = np.abs(np.dot(cam_orientation, face_norm) / (np.linalg.norm(cam_orientation) * np.linalg.norm(face_norm)))
+                #except:
+                #    print("Error in parallelism calculation:")
+                #    print(cam_orientation)
+                #    print(face_norm)
+                #    print(np.dot(cam_orientation, face_norm))
+                #    print(np.linalg.norm(cam_orientation))
+                #    print(np.linalg.norm(face_norm))
+                #    continue
+
+                if MODE.SHOW_SEGMENTS in debug:
                     fig, ax = plt.subplots(2)
                     #fig.canvas.restore_region()
                     ax[0].imshow(ime_arr[frame_idx], cmap=ListedColormap(['b', 'r'], N=2), vmin=0, vmax=1)
+                    ax[0].text(2000, 1, str(parallelism))
+                    ax[1].text(2000, 1, str(face_norm))
+                    ax[1].text(2000, 625, str(cam_orientation))
                     ax[1].imshow(mask_np, cmap=ListedColormap(['b', 'r'], N=2), vmin=0, vmax=1)
                     if class_idx != 0:
                        circle1= plt.Circle(coord, 50, color='g')
@@ -260,21 +415,24 @@ def process_model(meshFrames, meshObj, cull=True, debug_segmodel=False):
 
                     plt.show()
 
-                #print("Class:", class_idx)
-                weight = 1
-                if class_idx != 0:
-                    weight = WEIGHT
-
-                if str(class_idx) in voting_list:
-                    voting_list[str(class_idx)] += 1 * weight
+                score = 0
+                if class_idx == 0:
+                    score = 1
                 else:
-                    voting_list[str(class_idx)] = 1 * weight
+                    score = WEIGHT
+                if str(class_idx) in voting_list:
+                    voting_list[str(class_idx)] += score
+                else:
+                    # Initilize in dictionary
+                    voting_list[str(class_idx)] = 1
 
         # print(cat)
         # Remember that categories are strings!
 
         # Voting mechanism
         # print(voting_list)
+        if len(voting_list) == 0:
+            continue
         cat = max(voting_list, key=voting_list.get)
         if cull:
             if cat != "0":
@@ -298,28 +456,41 @@ def exec_model(
         meshFrames,
         out_path="out",
         out_name="output.ply",
-        show=False,
         cull=True,
         texture=False,
-        heatmap=False,
-        debug_segmodel=False):
+        debug=None):
+    if debug is None:
+        debug = []
     if not os.path.exists(out_path):
         os.makedirs(out_path)
     tmp_path = "tmp"
     if not os.path.exists(tmp_path):
         os.makedirs(tmp_path)
 
-    meshObjOrig = trimesh.load(meshFrames.model_path, process=False)
+    meshObjOrig = trimesh.load(meshFrames.model_path)
+    # Fix the mesh, remove degenerate faces
+    meshObjOrig = trimesh.Trimesh(
+        vertices=meshObjOrig.vertices,
+        face_normals=meshObjOrig.face_normals,
+        faces=meshObjOrig.faces,
+        process=True,
+        validate=True
+    )
     meshObjCopy = meshObjOrig.copy()
-    process_model(meshFrames, meshObjCopy, cull=cull, debug_segmodel=debug_segmodel)
+    if MODE.DONT_PROCESS not in debug:
+        process_model(meshFrames, meshObjCopy, cull=cull, debug=debug)
 
-    if heatmap:
-        meshHeatCopy = meshObjOrig.copy()
-        heatmap_model(meshFrames, meshHeatCopy)
-        meshHeatCopy.show()
+    if debug:
+        for mode in debug:
+            if mode == MODE.SHOW_OBJ:
+                meshObjCopy.show()
+            elif mode == MODE.SHOW_HEATMAP:
+                meshHeatCopy = meshObjOrig.copy()
+                heatmap_det(meshFrames, meshHeatCopy)
+                meshHeatCopy.show()
+            elif mode == MODE.SHOW_PARALLEL:
+                heatmap_parallelism(meshFrames, meshObjOrig)
 
-    if show:
-        meshObjCopy.show()
 
     tmp_obj_in = os.path.join(tmp_path, 'output.stl')
     tmp_obj_out = os.path.join(tmp_path, 'output.ply')
@@ -362,15 +533,45 @@ def exec_model(
 
 
 def main():
-    #green_apple_folder = os.path.join(data_path, "green_apple", "green_apple-very_close_16_54_52")
-    #green_apple_masks = os.path.join(data_path, "green_apple", "mask")
+    data_id = 0
+    mesh_folder = None
+    mesh_masks = None
+    out_folder = None
+    out_file = None
 
-    banana_folder = os.path.join(data_path, "banana", "2022_04_07_13_39_59")
-    banana_masks = os.path.join(data_path, "banana", "masks")
+    global WEIGHT
+    if data_id == 0:
+        mesh_folder = os.path.join(data_path, "apple", "apple_12_40_25")
+        mesh_masks = os.path.join(data_path, "apple", "mask")
+        out_folder = "out\\apple_WEIGHTED"
+        out_file = "green_apple_textured.ply"
+        WEIGHT = 4
+    if data_id == 1:
+        mesh_folder = os.path.join(data_path, "green_apple", "green_apple-very_close_16_54_52")
+        mesh_masks = os.path.join(data_path, "green_apple", "mask")
+        out_folder = "out\\green_apple"
+        out_file = "green_apple_textured.ply"
+        WEIGHT = 4
+    elif data_id == 2:
+        WEIGHT = 4
+        mesh_folder = os.path.join(data_path, "banana", "2022_04_07_13_39_59")
+        mesh_masks = os.path.join(data_path, "banana", "masks")
+        out_folder = "out\\banana_WEIGHTED"
+        out_file = "banana_textured.ply"
+        WEIGHT = 4
+    elif data_id == 3:
+        WEIGHT = 4
+        mesh_folder = os.path.join(data_path, "apple_13_37_19", "2022_04_07_13_35_59")
+        mesh_masks = os.path.join(data_path, "apple_13_37_19", "mask")
+        out_folder = "out\\apple_13_37_19"
+        out_file = "aapple_13_37_19_textured.ply"
 
+    if not mesh_folder and not mesh_masks and not out_folder and not out_file:
+        print("Error: missing one")
+        return
 
-    used_folder = banana_folder
-    used_masks = banana_masks
+    used_folder = mesh_folder
+    used_masks = mesh_masks
     frames = FramesObject(
         model_path=glob.glob(os.path.join(used_folder, "export.obj"))[0],
         img_list=glob.glob(os.path.join(used_folder, "frame*.jpg")),
@@ -379,18 +580,19 @@ def main():
     )
     frames.add_texobj(glob.glob(os.path.join(used_folder, "textured_output.obj"))[0])
 
-    global WEIGHT
     # Bias detections against background.
-    WEIGHT = 20
     ply_textured_pth, ply_volume = exec_model(
         frames,
-        out_path="out\\banana",
-        out_name="banana_textured_2.ply",
-        show=True,
-        cull=True,
+        out_path=out_folder,
+        out_name=out_file,
+        cull=False,
         texture=True,
-        heatmap=True,
-        debug_segmodel=False
+        debug=[
+            #MODE.DONT_PROCESS,
+            MODE.SHOW_OBJ,
+            #MODE.SHOW_PARALLEL
+            #MODE.SHOW_HEATMAP
+        ]
     )
 
     print("Volume (cm^3):", ply_volume)

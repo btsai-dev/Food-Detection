@@ -5,15 +5,23 @@ from pathlib import Path
 
 class FramesObject:
     def __init__(self, model_path, img_list, mask_list, frame_list):
-        self.base_list = [Path(os.path.basename(x)).stem for x in img_list]
+        self.base_list = [Path(os.path.basename(x)).stem for x in mask_list]
         self.model_path = model_path
-        self.img_list = img_list
+        self.img_list = []
+        self.frame_list = []
+        for file_path in img_list:
+            if Path(os.path.basename(file_path)).stem in self.base_list:
+                self.img_list.append(file_path)
+
+        for file_path in frame_list:
+            if Path(os.path.basename(file_path)).stem in self.base_list:
+                self.frame_list.append(file_path)
+
         self.mask_list = mask_list
-        self.frame_list = frame_list
         self.size = len(self.base_list)
-        print("Loaded", len(img_list), "images.")
-        print("Loaded", len(mask_list), "masks.")
-        print("Loaded", len(frame_list), "frame data.")
+        print("Received", len(self.img_list), "images.")
+        print("Received", len(self.mask_list), "masks.")
+        print("Received", len(self.frame_list), "frame data.")
         if len(img_list) == 0:
             warnings.warn("No imgs found!")
         if len(mask_list)==0:
