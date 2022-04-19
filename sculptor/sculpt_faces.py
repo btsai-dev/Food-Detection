@@ -533,7 +533,7 @@ def exec_model(
 
 
 def main():
-    data_id = 0
+    data_id = 2
     mesh_folder = None
     mesh_masks = None
     out_folder = None
@@ -545,11 +545,11 @@ def main():
         mesh_masks = os.path.join(data_path, "apple", "mask")
         out_folder = "out\\apple_WEIGHTED"
         out_file = "green_apple_textured.ply"
-        WEIGHT = 4
+        WEIGHT = 0.5
     if data_id == 1:
         mesh_folder = os.path.join(data_path, "green_apple", "green_apple-very_close_16_54_52")
         mesh_masks = os.path.join(data_path, "green_apple", "mask")
-        out_folder = "out\\green_apple"
+        out_folder = "out\\green_WEIGHTED"
         out_file = "green_apple_textured.ply"
         WEIGHT = 4
     elif data_id == 2:
@@ -558,12 +558,12 @@ def main():
         mesh_masks = os.path.join(data_path, "banana", "masks")
         out_folder = "out\\banana_WEIGHTED"
         out_file = "banana_textured.ply"
-        WEIGHT = 4
+        WEIGHT = 50
     elif data_id == 3:
         WEIGHT = 4
         mesh_folder = os.path.join(data_path, "apple_13_37_19", "2022_04_07_13_35_59")
         mesh_masks = os.path.join(data_path, "apple_13_37_19", "mask")
-        out_folder = "out\\apple_13_37_19"
+        out_folder = "out\\apple_13_37_19_WEIGHTED"
         out_file = "aapple_13_37_19_textured.ply"
 
     if not mesh_folder and not mesh_masks and not out_folder and not out_file:
