@@ -676,7 +676,7 @@ def exec_model(
 
 
 def main():
-    data_id = 3
+    data_id = 10
     mesh_folder = None
     mesh_masks = None
     out_folder = None
@@ -715,6 +715,57 @@ def main():
         out_file = "apple_13_37_19_textured.ply"
         WEIGHT = 3.5
 
+    # Data mass
+    elif data_id == 10:
+        name = "apple5_10_04_33"
+        mesh_folder = os.path.join(data_path, "apple_mass", "data", name, "2022_04_22_18_09_31")
+        mesh_masks = os.path.join(data_path, "apple_mass", "masks", name + "_mask",)
+        out_folder = "out\\apple_mass\\" + name
+        out_file = name + "_textured.ply"
+    elif data_id == 11:
+        name = "apple_2_19_36_34"
+        mesh_folder = os.path.join(data_path, "apple_mass", "data", name, "2022_04_21_16_09_51")
+        mesh_masks = os.path.join(data_path, "apple_mass", "masks", name + "_mask",)
+        out_folder = "out\\apple_mass\\" + name
+        out_file = name + "_textured.ply"
+    elif data_id == 12:
+        name = "apple_3_19_29_37"
+        mesh_folder = os.path.join(data_path, "apple_mass", "data", name, "2022_04_21_16_08_15")
+        mesh_masks = os.path.join(data_path, "apple_mass", "masks", name + "_mask",)
+        out_folder = "out\\apple_mass\\" + name
+        out_file = name + "_textured.ply"
+    elif data_id == 13:
+        name = "apple_6_10_04_03"
+        mesh_folder = os.path.join(data_path, "apple_mass", "data", name, "2022_04_22_18_10_23")
+        mesh_masks = os.path.join(data_path, "apple_mass", "masks", name + "_mask",)
+        out_folder = "out\\apple_mass\\" + name
+        out_file = name + "_textured.ply"
+    elif data_id == 14:
+        name = "apple_6_18_19_55"
+        mesh_folder = os.path.join(data_path, "apple_mass", "data", name, "2022_04_22_18_10_23")
+        mesh_masks = os.path.join(data_path, "apple_mass", "masks", name + "_mask",)
+        out_folder = "out\\apple_mass\\" + name
+        out_file = name + "_textured.ply"
+    elif data_id == 15:
+        name = "apple_19_35_57"
+        mesh_folder = os.path.join(data_path, "apple_mass", "data", name, "2022_04_21_16_08_52")
+        mesh_masks = os.path.join(data_path, "apple_mass", "masks", name + "_mask",)
+        out_folder = "out\\apple_mass\\" + name
+        out_file = name + "_textured.ply"
+    elif data_id == 16:
+        name = "apple_again_10_06_52"
+        mesh_folder = os.path.join(data_path, "apple_mass", "data", name, "2022_04_22_18_05_52")
+        mesh_masks = os.path.join(data_path, "apple_mass", "masks", name + "_mask",)
+        out_folder = "out\\apple_mass\\" + name
+        out_file = name + "_textured.ply"
+    elif data_id == 17:
+        name = "appple_10_05_50"
+        mesh_folder = os.path.join(data_path, "apple_mass", "data", name, "2022_04_22_18_06_52")
+        mesh_masks = os.path.join(data_path, "apple_mass", "masks", name + "_mask",)
+        out_folder = "out\\apple_mass\\" + name
+        out_file = name + "_textured.ply"
+
+
     if not mesh_folder and not mesh_masks and not out_folder and not out_file:
         print("Error: missing one")
         return
@@ -737,12 +788,12 @@ def main():
         cull=True,
         texture=True,
         debug=[
-            #MODE.DONT_PROCESS,
+            MODE.DONT_PROCESS,
             #MODE.VIS_CAM_POS
-            MODE.SHOW_OBJ,
+            #MODE.SHOW_OBJ,
             #MODE.SHOW_SEGMENTS,
             #MODE.SHOW_PARALLEL
-            #MODE.SHOW_HEATMAP
+            MODE.SHOW_HEATMAP
         ]
     )
 
