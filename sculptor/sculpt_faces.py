@@ -1,4 +1,5 @@
 import glob
+import pymeshlab
 import trimesh
 import os
 import numpy as np
@@ -24,7 +25,6 @@ from matplotlib.colors import ListedColormap
 from matplotlib.pyplot import cm
 import time
 import subprocess
-import pymeshlab
 import shutil
 import matplotlib.pyplot as plt
 
@@ -87,14 +87,7 @@ def compute_camera_info(_extrinsic):
     extrinsic_inv = np.linalg.inv(extrinsic)
     extrinsic_inv_R = np.array(extrinsic_inv[0:3, 0:3])     # Rotation matrix
     extrinsic_inv_T = np.array(extrinsic_inv[0:3, 3])       # Translation vector
-    #R_T = np.transpose(extrinsic_inv[0:3, 0:3])
     extrinsic_inv_R_T = np.transpose(extrinsic_inv_R)
-    #extrinsic_inv_rot_Vec, _ = cv2.Rodrigues(extrinsic_inv_R)
-    #R_T = np.transpose(R)
-    #print("Extrinsic:", str(extrinsic))
-    #print("Transpose:", str(R_T))
-    #print("Transform vector:", str(T))
-    #print("Dot product:", str(np.dot(R_T, T)))
     position = -np.dot(extrinsic_inv_R_T, extrinsic_inv_T)
     #print("Position:", position)
     rot_Vec, _ = cv2.Rodrigues(extrinsic_inv_R)
@@ -114,32 +107,16 @@ def _Map3DTo2D(p3d, projection_matrix, camera_pose, image_width, image_height):
     """
     @author: Elham Ravanbakhsh
     """
-    #print("PARAMETERS")
-    #print("p3d", p3d)
-    #print("projection_matrix", projection_matrix)
-    #print("camera_pose", camera_pose)
-    #print("image_width", image_width)
-    #print("image_height", image_height)
     view_matrix = np.linalg.inv(camera_pose)
-    #print("---\nview_matrix", view_matrix)
     mvp = np.dot(projection_matrix, view_matrix)
-    #print("mvp", mvp)
     p0 = np.append(p3d, [1])
-    #print("p0", p0)
 
     e0 = np.dot(mvp, p0)
-    #print("e0", e0)
     e0[:3] /= e0[3]
-    #print("e0 after", e0)
     pos_x = e0[0]
     pos_y = e0[1]
-    #print("pos_x", pos_x)
-    #print("pos_y", pos_y)
     px = (0.5 + (pos_x) * 0.5) * image_width
     py = (1.0 - (0.5 + (pos_y) * 0.5)) * image_height
-    #print("pos_x", pos_x)
-    #print("pos_y", pos_y)
-
     if px >= 0 and px < image_width and py >= 0 and py < image_height:
         return px, py
     else:
@@ -187,22 +164,14 @@ def get_cam_positions(meshFrames, meshObj, tmp_pth):
         with open(meshFrames.get_frame(json_idx)) as f:
             json_arr.append(json.load(f))
 
-
-
     # Apply texture from .obj + texture img to PLY file
     textured_obj_pth = meshFrames.tex_obj
-    #print("Here")
     ms = pymeshlab.MeshSet()
-    #print("Here2")
     ms.load_new_mesh(meshFrames.model_path)
     ms.load_new_mesh(textured_obj_pth)
-    #print("Here3")
     ms.set_current_mesh(0)
-    #print("Here4")
     ms.apply_filter('transfer_texture_to_color_per_vertex', sourcemesh=1, targetmesh=0)
-    #print("Here5")
     tmpout_pth = os.path.join(tmp_pth, 'get_cam.ply')
-    #print("Here6")
     ms.save_current_mesh(tmpout_pth)
 
     tex_meshObj = trimesh.load(tmpout_pth)
@@ -258,9 +227,6 @@ def compute_intersection(mesh, orig, camera, visualize=False):
     p = trimesh.load_path(segment)
     origin = orig
     direction = camera - orig
-    #print(origin)
-    #print(camera)
-    #print(direction)
 
     # Install conda embree for fast
 
@@ -788,12 +754,12 @@ def main():
         cull=True,
         texture=True,
         debug=[
-            MODE.DONT_PROCESS,
+            #MODE.DONT_PROCESS,
             #MODE.VIS_CAM_POS
             #MODE.SHOW_OBJ,
             #MODE.SHOW_SEGMENTS,
             #MODE.SHOW_PARALLEL
-            MODE.SHOW_HEATMAP
+            #MODE.SHOW_HEATMAP
         ]
     )
 
